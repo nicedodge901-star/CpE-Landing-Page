@@ -11,6 +11,38 @@
   }, { threshold: 0.15 });
   document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
 
+  // Small confetti burst when the "you're up to date" card appears
+  var ut = Array.prototype.find.call(document.querySelectorAll("#news .lift"), function (el) {
+    return /up to date/i.test(el.textContent || "");
+  });
+  if (ut && !reduce) {
+    var utColors = ["var(--gold)", "var(--sky)", "var(--primary)", "var(--primary-deep)"];
+    var utBusy = false;
+    function confetti() {
+      if (utBusy) return;
+      utBusy = true;
+      for (var k = 0; k < 24; k++) {
+        var p = document.createElement("span");
+        p.className = "confetti-piece" + (k % 3 === 0 ? " round" : "");
+        p.style.left = (2 + Math.random() * 96).toFixed(1) + "%";
+        p.style.background = utColors[k % utColors.length];
+        p.style.setProperty("--x", (Math.random() * 70 - 35).toFixed(1) + "px");
+        p.style.setProperty("--fy", (70 + Math.random() * 55).toFixed(0) + "px");
+        p.style.setProperty("--r", Math.round(Math.random() * 720 - 360) + "deg");
+        p.style.setProperty("--dl", (Math.random() * 0.4).toFixed(2) + "s");
+        p.style.setProperty("--dur", (1.5 + Math.random() * 1.2).toFixed(2) + "s");
+        ut.appendChild(p);
+        (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 3400); })(p);
+      }
+      setTimeout(function () { utBusy = false; }, 3600);
+    }
+    var utio = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) confetti(); else utBusy = false; });
+    }, { threshold: 0.4 });
+    utio.observe(ut);
+  }
+
+
   // Smooth scrolling (Lenis)
   if (!reduce && window.Lenis) {
     var lenis = new Lenis({ duration: 1.25, easing: function (t) { return 1 - Math.pow(1 - t, 4); }, anchors: { offset: -80 } });
@@ -75,5 +107,74 @@
     box.addEventListener("mouseleave", function () { paused = false; });
     setInterval(function () { if (!paused) go(i + 1); }, 4500);
     render();
+  }
+  // Courses collage: click or tap a photo to enlarge (Esc closes, arrows or swipe to browse)
+  var tiles = document.querySelectorAll(".collage-tile");
+  var lb = document.getElementById("lightbox");
+  if (tiles.length && lb) {
+    var lbImg = lb.querySelector("img");
+    var lbCap = lb.querySelector("figcaption");
+    var lbBtns = [lb.querySelector(".lb-close"), lb.querySelector(".lb-prev"), lb.querySelector(".lb-next")];
+    var cur = 0, opener = null, startX = 0;
+    function isOpen() { return lb.classList.contains("open"); }
+    function show(k) {
+      cur = (k + tiles.length) % tiles.length;
+      var im = tiles[cur].querySelector("img");
+      lbImg.src = im.currentSrc || im.src;
+      lbImg.alt = im.alt;
+      lbCap.textContent = (cur + 1) + " / " + tiles.length + " \u00b7 " + tiles[cur].getAttribute("data-caption");
+    }
+    function openLb(k) {
+      opener = tiles[k]; show(k);
+      lb.classList.add("open"); lb.setAttribute("aria-hidden", "false");
+      root.style.overflow = "hidden";
+      if (lenis) lenis.stop();
+      lbBtns[0].focus();
+    }
+    function closeLb() {
+      lb.classList.remove("open"); lb.setAttribute("aria-hidden", "true");
+      root.style.overflow = "";
+      if (lenis) lenis.start();
+      if (opener) opener.focus();
+    }
+    tiles.forEach(function (t, k) { t.addEventListener("click", function () { openLb(k); }); });
+    lbBtns[0].addEventListener("click", closeLb);
+    lbBtns[1].addEventListener("click", function () { show(cur - 1); });
+    lbBtns[2].addEventListener("click", function () { show(cur + 1); });
+    lb.addEventListener("click", function (e) { if (e.target === lb) closeLb(); });
+    lb.addEventListener("touchstart", function (e) { startX = e.changedTouches[0].clientX; }, { passive: true });
+    lb.addEventListener("touchend", function (e) {
+      var dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+    document.addEventListener("keydown", function (e) {
+      if (!isOpen()) return;
+      if (e.key === "Escape") closeLb();
+      else if (e.key === "ArrowLeft") show(cur - 1);
+      else if (e.key === "ArrowRight") show(cur + 1);
+      else if (e.key === "Tab") {
+        var first = lbBtns[0], last = lbBtns[2], a = document.activeElement;
+        if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+  }
+  // Facilities: hover, focus or tap a lab card to show its photo
+  var facCards = document.querySelectorAll(".fac-card");
+  var facSlides = document.querySelectorAll(".photo-slide");
+  if (facCards.length && facCards.length === facSlides.length) {
+    function pickFac(k) {
+      facCards.forEach(function (c, j) { c.classList.toggle("on", j === k); });
+      facSlides.forEach(function (s, j) {
+        s.classList.toggle("on", j === k);
+        s.setAttribute("aria-hidden", j === k ? "false" : "true");
+      });
+    }
+    facCards.forEach(function (c, k) {
+      c.addEventListener("mouseenter", function () { pickFac(k); });
+      c.addEventListener("focus", function () { pickFac(k); });
+      c.addEventListener("click", function () { pickFac(k); });
+    });
+    pickFac(0);
   }
 })();
